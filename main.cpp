@@ -2,7 +2,7 @@
  * main.cpp
  *
  *  Created on: 15 окт. 2020 г.
- *      Author: User
+ *      Author: Alexers1501
  *      https://github.com/Alexers1501/Draw-graphic.git
  */
 
@@ -31,6 +31,14 @@
 #include <cmath>
 #include <cstdint>
 #include <vector>
+#include <chrono>
+
+static constexpr auto Pi = acos (-1.);
+constexpr  auto step_big = 1.0, step_small = 0.01;
+constexpr  auto scale = 20.0; // -30 до 30 по всем осям
+constexpr auto koef = 4.0;	// коэффициент масштабирования
+constexpr auto fov = Pi / 6.0;
+
 
 //структура заголовка tga-файла
 #pragma pack(push, 1)
@@ -54,8 +62,8 @@ constexpr uint32_t COL_BACKGROUND = 0xff003f3f;
 constexpr uint32_t COL_FOREGROUND = 0xffcfcfcf;
 
 double sinc(double x){
-	if (x == 0)
-		return 1;
+	if (x == 0.0)
+		return 1.0;
 	return sin(x) / x;
 }
 
@@ -67,20 +75,63 @@ double my_function(double x, double y){
 int main(){
 
 	//построить график функции в некотором буфере
-
-	std::vector<uint32_t> picture(IMG_WIDTH * IMG_HEIGHT);
-	for (auto && p : picture)
-		p = COL_BACKGROUND;
-
 	//КОД
-
 	//записать построенное изображение в файл
 	TGA_Header hdr{};
 	hdr.width = IMG_WIDTH;
 	hdr.height = IMG_HEIGHT;
 	hdr.depth = 32;
 	hdr.img_type = 2;
-	hdr.img_desc = 0x20;
+	hdr.img_desc = 0x38;	// Угол поворота графика
+	//построение графика
+	std::vector<uint32_t> picture(IMG_WIDTH * IMG_HEIGHT);
+	for (auto && p : picture)
+		p = COL_BACKGROUND;
+
+	uint32_t col = COL_FOREGROUND;
+
+	std::vector<int> max_point(IMG_WIDTH);
+	for(auto && value : max_point)
+		value = IMG_HEIGHT;
+
+constexpr	double ResX = 30.0;	// Растяжение по X
+constexpr	double ResY = 30.0;	// Растяжение по Y
+constexpr	double ResZ = 300.0;	// Растяжение по Z
+	int size = IMG_WIDTH * IMG_HEIGHT;
+
+
+	for (double x = scale; x > -scale; x -= step_big) {
+		for (double y = scale; y > -scale; y -= step_small) {
+			double z = (my_function(x, y));
+			int x1 = int( IMG_WIDTH / 2 - ResX * x * cos( fov ) + ResY * y * cos( fov ) );
+			int y1 = int( IMG_HEIGHT / 2 + ResX * x * sin( fov ) + ResY * y * sin( fov ) - ResZ * z);
+			if(0 < x1 && x1 < IMG_WIDTH 			// проверка, чтобы не воходил за ширину
+					&& y1 * IMG_WIDTH + x1 <= size
+					&& max_point[x1] > y1){			// определение горизонта
+				max_point[x1] = y1;
+				if( 0 < y1 && y1 <= IMG_HEIGHT )	// проверка выхода за высоту
+					picture[y1 * IMG_WIDTH + x1] = col;
+			}
+		}
+	}
+	for(auto && value : max_point)
+		value = IMG_HEIGHT;
+	for (double y = scale; y > -scale; y -= step_big) {
+		for (double x = scale; x > -scale; x -= step_small) {
+			double z = my_function(double(x), double(y));
+			int x1 = int( IMG_WIDTH / 2 - ResX * x * cos( fov ) + ResY * y * cos( fov ) );
+			int y1 = int( IMG_HEIGHT / 2 + ResX * x * sin( fov ) + ResY * y * sin( fov ) - ResZ * z);
+			if(0 < x1 && x1 < IMG_WIDTH 			// проверка, чтобы не воходил за ширину
+					&& y1 * IMG_WIDTH + x1 <= size
+					&& max_point[x1] > y1){			// определение горизонта
+				max_point[x1] = y1;
+				if( 0 < y1 && y1 <= IMG_HEIGHT )	// проверка выхода за высоту
+					picture[y1 * IMG_WIDTH + x1] = col;
+			}
+		}
+	}
+
+
 
 
 	//создаем поток+открываем файл
@@ -88,7 +139,7 @@ int main(){
 	//записываем заголовок и данне картинки
 	tga_file.write(reinterpret_cast<char*>(&hdr), sizeof(hdr));
 	tga_file.write(reinterpret_cast<char*>(&picture[0]),
-			picture.size() * sizeof(uint32_t));
+			picture.size() * koef);
 	//закрываем файл
 	tga_file.close();
 
@@ -96,4 +147,3 @@ int main(){
 
 	return 0;
 }
-
